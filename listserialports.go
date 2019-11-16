@@ -26,6 +26,7 @@ import (
 	"unicode"
 )
 
+//SerialPortByDeviceName is type for sorting
 type SerialPortByDeviceName []SerialPortFileEntry
 
 func (a SerialPortByDeviceName) Len() int      { return len(a) }
@@ -51,22 +52,24 @@ func (a SerialPortByDeviceName) Less(i, j int) bool {
 
 }
 
+//SerialPortFileEntry collects final result of serial port status
 type SerialPortFileEntry struct {
 	DeviceFile   string  //With complete path
 	UsedByPids   []int64 //In case of conflict, file is open by multiple pids
 	Certain      bool
-	DeviceById   string
+	DeviceByID   string
 	DeviceByPath string
 }
 
+//Special PID return values
 const (
-	NOTINUSEPID  = -1
-	UNCERTAINPID = -2
+	NOTINUSEPID  = -1 //port is free
+	UNCERTAINPID = -2 //can not determine is port free or not (missing rights, non root user)
 )
 
-//Is really equal
+//Equal check
 func (p *SerialPortFileEntry) Equal(a SerialPortFileEntry) bool {
-	if len(p.UsedByPids) != len(a.UsedByPids) || p.DeviceFile != a.DeviceFile || p.DeviceById != a.DeviceById || p.Certain != a.Certain || p.DeviceByPath != a.DeviceByPath {
+	if len(p.UsedByPids) != len(a.UsedByPids) || p.DeviceFile != a.DeviceFile || p.DeviceByID != a.DeviceByID || p.Certain != a.Certain || p.DeviceByPath != a.DeviceByPath {
 		return false
 	}
 	for i, v := range p.UsedByPids {
@@ -77,7 +80,7 @@ func (p *SerialPortFileEntry) Equal(a SerialPortFileEntry) bool {
 	return true
 }
 
-//Entries updated. Got new filenames etc..
+//Updates list entries updated. Got new filenames etc..
 func Updates(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry) []SerialPortFileEntry {
 	result := []SerialPortFileEntry{}
 	for _, oldE := range oldEntrys {
@@ -92,6 +95,7 @@ func Updates(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry) [
 	return result
 }
 
+//NewEntries lists really new entries
 func NewEntries(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry) []SerialPortFileEntry {
 	result := []SerialPortFileEntry{}
 	for _, newE := range newEntrys {
@@ -109,8 +113,9 @@ func NewEntries(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry
 	return result
 }
 
+//HasAny tells is portname matching to any file or link name
 func (p *SerialPortFileEntry) HasAny(portname string) bool {
-	return (portname == p.DeviceFile) || (portname == p.DeviceById) || (portname == p.DeviceByPath)
+	return (portname == p.DeviceFile) || (portname == p.DeviceByID) || (portname == p.DeviceByPath)
 }
 
 //ToPrintoutFormat for formatting command line printout
@@ -125,8 +130,8 @@ func (p *SerialPortFileEntry) ToPrintoutFormat() string { //Tab
 	}
 
 	result := fmt.Sprintf("%s %s\n", p.DeviceFile, usedByString)
-	if 0 < len(p.DeviceById) {
-		result += fmt.Sprintf("\t%s\n", p.DeviceById)
+	if 0 < len(p.DeviceByID) {
+		result += fmt.Sprintf("\t%s\n", p.DeviceByID)
 	}
 	if 0 < len(p.DeviceByPath) {
 		result += fmt.Sprintf("\t%s\n", p.DeviceByPath)
@@ -201,6 +206,7 @@ func fileIsInUseByPids(filename string, pidlist []int64) ([]int64, bool) {
 	return results, noErrors
 }
 
+//Exists tell if file exists
 func Exists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {
@@ -210,7 +216,7 @@ func Exists(name string) bool {
 	return true
 }
 
-//Direct check. Is certain
+//FileIsInUse  Direct check. Is certain
 func FileIsInUse(filename string) ([]int64, bool, error) {
 	if !Exists(filename) {
 		return []int64{}, true, fmt.Errorf("File %v does not exists", filename)
@@ -231,7 +237,7 @@ func FileIsInUse(filename string) ([]int64, bool, error) {
 	return pidlist, certain, nil
 }
 
-//Old fashioned
+//ListDevSerialPorts  lists serial ports named directly under /dev/
 func ListDevSerialPorts() ([]string, error) {
 	//TODO  parse /proc/tty/drivers
 	serialDevPrefixes := []string{"ttyUSB", "ttyACM", "ttyS", "rfcomm", "ttyAMA", "ttySAC", "serial"}
@@ -267,6 +273,7 @@ const (
 	SERIALBYWHATBYPATH = "by-path"
 )
 
+//listSerialPortMappingByWhat  is used for listing ports by id or path
 func listSerialPortMappingByWhat(what string) (map[string]string, error) {
 	dirName := fmt.Sprintf("/dev/serial/%s", what)
 	dirlist, errList := ioutil.ReadDir(dirName)
@@ -288,6 +295,7 @@ func listSerialPortMappingByWhat(what string) (map[string]string, error) {
 	return result, nil
 }
 
+// ProbeSerialports is function for getting list of serial ports on system with details
 func ProbeSerialports() ([]SerialPortFileEntry, error) {
 	//Check, are ports in use
 	processList, procListErr := listProcesses()
@@ -322,12 +330,12 @@ func ProbeSerialports() ([]SerialPortFileEntry, error) {
 	}
 
 	//If distro supports by-id and by-path. Then group those together
-	byIdMap, idmapErr := listSerialPortMappingByWhat(SERIALBYWHATBYID)
+	byIDMap, idmapErr := listSerialPortMappingByWhat(SERIALBYWHATBYID)
 	if idmapErr == nil {
 		byPathmap, pathmapErr := listSerialPortMappingByWhat(SERIALBYWHATBYPATH)
 		if pathmapErr == nil {
 			//Ok, lets list
-			for devname, byidfile := range byIdMap {
+			for devname, byidfile := range byIDMap {
 				path, hazPath := byPathmap[devname]
 				if hazPath {
 					pidlist, certain := fileIsInUseByPids(devname, processList)
@@ -335,7 +343,7 @@ func ProbeSerialports() ([]SerialPortFileEntry, error) {
 						DeviceFile:   devname,
 						UsedByPids:   pidlist,
 						Certain:      certain,
-						DeviceById:   byidfile,
+						DeviceByID:   byidfile,
 						DeviceByPath: path,
 					}
 				}

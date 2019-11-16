@@ -1,10 +1,15 @@
-#listserialports
+# Listserialports
 
-Used for listing and checking serial device availability. On typical use case,
-program needs serial port and before opening serial port check that port is not in use by other programs
+When working with hardware devices with usb-serial interface, it is sometimes quite frustrating when usb ports enumerate into hard to remember names. Or it is possible to start more than one program that access same serial ports and cause "*funny*" effects.
 
-This is golang library, check lsserials as example command line tool.
+So I made this library for listing and checking serial device availability on program start.
 
+Check lsserials as example/standalone command line tool.
+
+
+## notice
+
+This works only on linux
 
 This library is only part of my other project.
 
