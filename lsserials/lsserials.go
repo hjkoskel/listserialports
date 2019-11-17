@@ -41,7 +41,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	entries, errProbe := listserialports.ProbeSerialports()
+	entries, errProbe := listserialports.Probe()
 	if errProbe != nil {
 		fmt.Printf("%v", errProbe)
 		os.Exit(-1)
@@ -58,7 +58,7 @@ func main() {
 	pollDelay := time.Duration(*pPollInterval) * time.Millisecond
 	for {
 		time.Sleep(pollDelay)
-		nextEntries, errNextProbe := listserialports.ProbeSerialports()
+		nextEntries, errNextProbe := listserialports.Probe()
 		if errNextProbe != nil {
 			fmt.Printf("%v", errProbe)
 			os.Exit(-1)

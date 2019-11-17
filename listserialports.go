@@ -26,12 +26,12 @@ import (
 	"unicode"
 )
 
-//SerialPortByDeviceName is type for sorting
-type SerialPortByDeviceName []SerialPortFileEntry
+//ByDeviceName is type for sorting
+type ByDeviceName []Entry
 
-func (a SerialPortByDeviceName) Len() int      { return len(a) }
-func (a SerialPortByDeviceName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a SerialPortByDeviceName) Less(i, j int) bool {
+func (a ByDeviceName) Len() int      { return len(a) }
+func (a ByDeviceName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByDeviceName) Less(i, j int) bool {
 	//Split in between base and number
 	baseIarr := strings.FieldsFunc(a[i].DeviceFile, unicode.IsNumber)
 	baseJarr := strings.FieldsFunc(a[j].DeviceFile, unicode.IsNumber)
@@ -52,8 +52,8 @@ func (a SerialPortByDeviceName) Less(i, j int) bool {
 
 }
 
-//SerialPortFileEntry collects final result of serial port status
-type SerialPortFileEntry struct {
+//Entry collects final result of serial port status
+type Entry struct {
 	DeviceFile   string  //With complete path
 	UsedByPids   []int64 //In case of conflict, file is open by multiple pids
 	Certain      bool
@@ -68,7 +68,7 @@ const (
 )
 
 //Equal check
-func (p *SerialPortFileEntry) Equal(a SerialPortFileEntry) bool {
+func (p *Entry) Equal(a Entry) bool {
 	if len(p.UsedByPids) != len(a.UsedByPids) || p.DeviceFile != a.DeviceFile || p.DeviceByID != a.DeviceByID || p.Certain != a.Certain || p.DeviceByPath != a.DeviceByPath {
 		return false
 	}
@@ -81,8 +81,8 @@ func (p *SerialPortFileEntry) Equal(a SerialPortFileEntry) bool {
 }
 
 //Updates list entries updated. Got new filenames etc..
-func Updates(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry) []SerialPortFileEntry {
-	result := []SerialPortFileEntry{}
+func Updates(oldEntrys []Entry, newEntrys []Entry) []Entry {
+	result := []Entry{}
 	for _, oldE := range oldEntrys {
 		for _, newE := range newEntrys {
 			if oldE.DeviceFile == newE.DeviceFile {
@@ -96,8 +96,8 @@ func Updates(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry) [
 }
 
 //NewEntries lists really new entries
-func NewEntries(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry) []SerialPortFileEntry {
-	result := []SerialPortFileEntry{}
+func NewEntries(oldEntrys []Entry, newEntrys []Entry) []Entry {
+	result := []Entry{}
 	for _, newE := range newEntrys {
 		found := false
 		for _, oldE := range oldEntrys {
@@ -114,12 +114,12 @@ func NewEntries(oldEntrys []SerialPortFileEntry, newEntrys []SerialPortFileEntry
 }
 
 //HasAny tells is portname matching to any file or link name
-func (p *SerialPortFileEntry) HasAny(portname string) bool {
+func (p *Entry) HasAny(portname string) bool {
 	return (portname == p.DeviceFile) || (portname == p.DeviceByID) || (portname == p.DeviceByPath)
 }
 
 //ToPrintoutFormat for formatting command line printout
-func (p *SerialPortFileEntry) ToPrintoutFormat() string { //Tab
+func (p *Entry) ToPrintoutFormat() string { //Tab
 	usedByString := ""
 	if 0 < len(p.UsedByPids) {
 		if len(p.UsedByPids) == 1 {
@@ -237,8 +237,8 @@ func FileIsInUse(filename string) ([]int64, bool, error) {
 	return pidlist, certain, nil
 }
 
-//ListDevSerialPorts  lists serial ports named directly under /dev/
-func ListDevSerialPorts() ([]string, error) {
+//ListDev  lists serial ports named directly under /dev/
+func ListDev() ([]string, error) {
 	//TODO  parse /proc/tty/drivers
 	serialDevPrefixes := []string{"ttyUSB", "ttyACM", "ttyS", "rfcomm", "ttyAMA", "ttySAC", "serial"}
 
@@ -273,8 +273,8 @@ const (
 	SERIALBYWHATBYPATH = "by-path"
 )
 
-//listSerialPortMappingByWhat  is used for listing ports by id or path
-func listSerialPortMappingByWhat(what string) (map[string]string, error) {
+//listByWhat  is used for listing ports by id or path
+func listByWhat(what string) (map[string]string, error) {
 	dirName := fmt.Sprintf("/dev/serial/%s", what)
 	dirlist, errList := ioutil.ReadDir(dirName)
 	if errList != nil {
@@ -295,20 +295,20 @@ func listSerialPortMappingByWhat(what string) (map[string]string, error) {
 	return result, nil
 }
 
-// ProbeSerialports is function for getting list of serial ports on system with details
-func ProbeSerialports() ([]SerialPortFileEntry, error) {
+// Probe is function for getting list of serial ports on system with details
+func Probe() ([]Entry, error) {
 	//Check, are ports in use
 	processList, procListErr := listProcesses()
 	if procListErr != nil { //If can not read proc.. it is total fail. wrong OS or something
-		return []SerialPortFileEntry{}, fmt.Errorf("Reading proc failed %v", procListErr)
+		return []Entry{}, fmt.Errorf("Reading proc failed %v", procListErr)
 	}
 
-	result := map[string]SerialPortFileEntry{}
+	result := map[string]Entry{}
 
 	//Old fashioned, just serial port list
-	devNames, errDevNames := ListDevSerialPorts()
+	devNames, errDevNames := ListDev()
 	if errDevNames != nil {
-		return []SerialPortFileEntry{}, errDevNames
+		return []Entry{}, errDevNames
 	}
 	for _, devname := range devNames {
 		found := false
@@ -321,7 +321,7 @@ func ProbeSerialports() ([]SerialPortFileEntry, error) {
 
 		if !found {
 			pids, certain := fileIsInUseByPids(devname, processList)
-			result[devname] = SerialPortFileEntry{
+			result[devname] = Entry{
 				DeviceFile: devname,
 				UsedByPids: pids,
 				Certain:    certain,
@@ -330,16 +330,16 @@ func ProbeSerialports() ([]SerialPortFileEntry, error) {
 	}
 
 	//If distro supports by-id and by-path. Then group those together
-	byIDMap, idmapErr := listSerialPortMappingByWhat(SERIALBYWHATBYID)
+	byIDMap, idmapErr := listByWhat(SERIALBYWHATBYID)
 	if idmapErr == nil {
-		byPathmap, pathmapErr := listSerialPortMappingByWhat(SERIALBYWHATBYPATH)
+		byPathmap, pathmapErr := listByWhat(SERIALBYWHATBYPATH)
 		if pathmapErr == nil {
 			//Ok, lets list
 			for devname, byidfile := range byIDMap {
 				path, hazPath := byPathmap[devname]
 				if hazPath {
 					pidlist, certain := fileIsInUseByPids(devname, processList)
-					result[devname] = SerialPortFileEntry{
+					result[devname] = Entry{
 						DeviceFile:   devname,
 						UsedByPids:   pidlist,
 						Certain:      certain,
@@ -352,11 +352,11 @@ func ProbeSerialports() ([]SerialPortFileEntry, error) {
 	}
 
 	//Hack
-	resultArr := []SerialPortFileEntry{}
+	resultArr := []Entry{}
 	for _, v := range result {
 		resultArr = append(resultArr, v)
 	}
 
-	sort.Sort(SerialPortByDeviceName(resultArr))
+	sort.Sort(ByDeviceName(resultArr))
 	return resultArr, nil
 }
