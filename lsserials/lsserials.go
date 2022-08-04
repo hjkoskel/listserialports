@@ -20,7 +20,7 @@ func main() {
 	flag.Parse()
 
 	if 0 < len(*pPort) { //Check only one port
-		pidlist, certain, errProbe := listserialports.FileIsInUse(*pPort)
+		pidlist, certain, errProbe := listserialports.FileIsInUseByPids(*pPort)
 		if errProbe != nil {
 			fmt.Printf("%v\n", errProbe)
 			os.Exit(-2)
@@ -41,9 +41,16 @@ func main() {
 		os.Exit(-1)
 	}
 
-	entries, errProbe := listserialports.Probe()
+	drivers, driversListErr := listserialports.ListOfSerialTTYDriverPrefixes()
+	if driversListErr != nil {
+		fmt.Printf("Error listing serial drivers\n")
+		os.Exit(-1)
+	}
+	fmt.Printf("Supported serial drivers %#v\n", drivers)
+
+	entries, errProbe := listserialports.Probe(true)
 	if errProbe != nil {
-		fmt.Printf("%v", errProbe)
+		fmt.Printf("%v\n", errProbe)
 		os.Exit(-1)
 	}
 	for i, entry := range entries {
@@ -58,7 +65,7 @@ func main() {
 	pollDelay := time.Duration(*pPollInterval) * time.Millisecond
 	for {
 		time.Sleep(pollDelay)
-		nextEntries, errNextProbe := listserialports.Probe()
+		nextEntries, errNextProbe := listserialports.Probe(true)
 		if errNextProbe != nil {
 			fmt.Printf("%v", errProbe)
 			os.Exit(-1)
